@@ -1,10 +1,14 @@
 use regex::Regex;
 
+/// Counts the amount of times a given word appears in a markdown text.
 pub fn count_words(word: &str, contents: &str) -> u32 {
-    let pattern = format!(r"\b{}\b", word);
-    let matcher = Regex::new(&pattern).unwrap();
+    let cleanup_matcher = Regex::new(r"([*_`~]+)").unwrap();
+    let clean_contents = cleanup_matcher.replace_all(contents, "");
 
-    matcher.find_iter(&contents).count() as u32
+    let word_matcher_pattern = format!(r"\b{}\b", word);
+    let word_matcher = Regex::new(&word_matcher_pattern).unwrap();
+
+    word_matcher.find_iter(&clean_contents).count() as u32
 }
 
 #[cfg(test)]
@@ -60,5 +64,13 @@ mod tests {
         let contents = "abc abcx abc zabcx";
 
         assert_eq!(2, count_words(word, contents));
+    }
+
+    #[test]
+    fn counts_individual_words_with_markdown() {
+        let word = "abc";
+        let contents = "**abc** _abcx_  _abc_ `zabcx` `abc` ~~abc~~ **abc**x";
+
+        assert_eq!(4, count_words(word, contents));
     }
 }

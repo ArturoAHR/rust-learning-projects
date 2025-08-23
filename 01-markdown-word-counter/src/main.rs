@@ -41,8 +41,6 @@ fn main() {
 fn run(args: Args) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(&args.path)?;
 
-    println!("Text:\n{contents}");
-
     let word_count = count_words(&args.word, &contents);
 
     println!(

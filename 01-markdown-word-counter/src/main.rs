@@ -3,6 +3,8 @@ use std::error::Error;
 use std::fs;
 use std::process;
 
+use markdown_word_counter::count_words;
+
 struct Args {
     /// The word to count
     word: String,
@@ -37,9 +39,16 @@ fn main() {
 }
 
 fn run(args: Args) -> Result<(), Box<dyn Error>> {
-    let contents = fs::read_to_string(args.path)?;
+    let contents = fs::read_to_string(&args.path)?;
 
     println!("Text:\n{contents}");
+
+    let word_count = count_words(&args.word, &contents);
+
+    println!(
+        "The word \"{}\" was found {} times in {}",
+        args.word, word_count, args.path
+    );
 
     Ok(())
 }

@@ -1,5 +1,7 @@
 use std::env;
+use std::error::Error;
 use std::fs;
+use std::process;
 
 struct Args {
     /// The word to count
@@ -10,18 +12,34 @@ struct Args {
 }
 
 impl Args {
-    fn new(args: Vec<String>) -> Args {
+    fn build(args: Vec<String>) -> Result<Args, &'static str> {
+        if args.len() < 3 {
+            return Err("Not enough arguments");
+        }
+
         let word = args[1].clone();
         let path = args[2].clone();
 
-        Args { path, word }
+        Ok(Args { path, word })
     }
 }
 
 fn main() {
-    let args: Args = Args::new(env::args().collect());
+    let args: Args = Args::build(env::args().collect()).unwrap_or_else(|err| {
+        println!("Argument parsing error: {err}");
+        process::exit(1);
+    });
 
-    let contents = fs::read_to_string(args.path).expect("Should have been able to read the file");
+    if let Err(e) = run(args) {
+        println!("Application error: {e}");
+        process::exit(1);
+    };
+}
 
-    println!("Text:\n{contents}")
+fn run(args: Args) -> Result<(), Box<dyn Error>> {
+    let contents = fs::read_to_string(args.path)?;
+
+    println!("Text:\n{contents}");
+
+    Ok(())
 }

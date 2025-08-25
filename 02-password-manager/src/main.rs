@@ -1,5 +1,5 @@
 use clap::{ArgMatches, Command, arg};
-use password_manager::initialize;
+use password_manager::PasswordManager;
 use std::error::Error;
 use std::process;
 
@@ -34,8 +34,10 @@ fn main() {
 }
 
 fn run(command: ArgMatches) -> Result<(), Box<dyn Error>> {
+    let password_manager = PasswordManager::new();
+
     return match command.subcommand() {
-        Some(("init", _)) => Ok(initialize()),
+        Some(("init", _)) => password_manager.initialize(),
         Some(("add", _)) => Ok({}),
         Some(("get", _)) => Ok({}),
         Some(("list", _)) => Ok({}),

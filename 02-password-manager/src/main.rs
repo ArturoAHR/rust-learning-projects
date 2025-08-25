@@ -1,4 +1,5 @@
 use clap::{ArgMatches, Command, arg};
+use password_manager::initialize;
 use std::error::Error;
 use std::process;
 
@@ -33,13 +34,11 @@ fn main() {
 }
 
 fn run(command: ArgMatches) -> Result<(), Box<dyn Error>> {
-    match command.subcommand() {
-        Some(("init", subcommand)) => {}
-        Some(("add", subcommand)) => {}
-        Some(("get", subcommand)) => {}
-        Some(("list", subcommand)) => {}
-        _ => {}
-    }
-
-    Ok(())
+    return match command.subcommand() {
+        Some(("init", _)) => Ok(initialize()),
+        Some(("add", _)) => Ok({}),
+        Some(("get", _)) => Ok({}),
+        Some(("list", _)) => Ok({}),
+        _ => Err("Command not supported".into()),
+    };
 }

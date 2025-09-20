@@ -2,9 +2,34 @@ use std::env;
 use std::error::Error;
 use std::fs;
 use std::io;
+use std::io::Write;
 
+use argon2::Argon2;
+use argon2::password_hash::rand_core::RngCore;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
+use chacha20poly1305::KeyInit;
+use chacha20poly1305::XChaCha20Poly1305;
+use chacha20poly1305::XNonce;
+use chacha20poly1305::aead::Aead;
+use chacha20poly1305::aead::OsRng;
 use dialoguer::Confirm;
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
+
+#[derive(Serialize, Deserialize)]
+pub struct Vault {
+    salt: String,
+    nonce: String,
+    encrypted_data: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PasswordManagerEntry {
+    id: String,
+    password: String,
+}
 
 pub struct PasswordManager {
     vault_file_path: String,
@@ -93,6 +118,53 @@ impl PasswordManager {
 
         let password = self.prompt_master_password_setup()?;
 
+        let entries: Vec<PasswordManagerEntry> = Vec::new();
+
+        let mut vault_file = fs::File::create(&self.vault_file_path)?;
+
+        let json_entries = serde_json::to_string_pretty(&entries)?;
+
+        let mut salt = vec![0u8; 16];
+        OsRng.fill_bytes(&mut salt);
+
+        let mut password_derive_key = [0u8; 32];
+        let password_hash_result = Argon2::default().hash_password_into(
+            &password.as_bytes(),
+            &salt,
+            &mut password_derive_key,
+        );
+
+        if let Err(_e) = password_hash_result {
+            return Err("Error while generating password hash".into());
+        }
+
+        let cipher = XChaCha20Poly1305::new(&password_derive_key.into());
+
+        let mut nonce_bytes = [0u8; 24];
+        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = XNonce::from_slice(&nonce_bytes);
+
+        let data_encryption_result = cipher.encrypt(nonce, json_entries.as_bytes());
+
+        match data_encryption_result {
+            Ok(encrypted_data) => {
+                let vault = Vault {
+                    salt: STANDARD.encode(salt),
+                    nonce: STANDARD.encode(nonce.to_vec()),
+                    encrypted_data: STANDARD.encode(encrypted_data),
+                };
+
+                let vault_json = serde_json::to_string_pretty(&vault)?;
+
+                vault_file.write_all(&vault_json.as_bytes())?;
+            }
+            Err(_e) => return Err("Error while performing encryption".into()),
+        }
+
+        println!(
+            "Vault has been created successfully at {}",
+            &self.vault_file_path
+        );
         Ok({})
     }
 }

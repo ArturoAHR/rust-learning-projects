@@ -48,10 +48,26 @@ impl PasswordManager {
         let data_reset_confirmation = Confirm::new().with_prompt(message).interact()?;
 
         if data_reset_confirmation {
-            self.reset_vault()?
+            self.reset_vault()?;
         }
 
         Ok({})
+    }
+
+    fn prompt_master_password_setup(&self) -> Result<String, Box<dyn Error>> {
+        loop {
+            println!("Please enter your master password:");
+            let password = rpassword::read_password()?;
+
+            println!("Enter your master password again to confirm:");
+            let repeated_password = rpassword::read_password()?;
+
+            if password == repeated_password {
+                return Ok(password.clone());
+            }
+
+            println!("The passwords do not match, repeating the process");
+        }
     }
 
     pub fn initialize(&self) -> Result<(), Box<dyn Error>> {
@@ -74,6 +90,8 @@ impl PasswordManager {
         }
 
         println!("Proceeding with initialization");
+
+        let password = self.prompt_master_password_setup()?;
 
         Ok({})
     }

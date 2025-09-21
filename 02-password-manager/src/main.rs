@@ -34,7 +34,7 @@ fn main() {
 }
 
 fn run(command: ArgMatches) -> Result<(), Box<dyn Error>> {
-    let password_manager = PasswordManager::new();
+    let mut password_manager = PasswordManager::new();
 
     return match command.subcommand() {
         Some(("init", _)) => password_manager.initialize(),

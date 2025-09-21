@@ -13,19 +13,19 @@ use chacha20poly1305::XChaCha20Poly1305;
 use chacha20poly1305::XNonce;
 use chacha20poly1305::aead::Aead;
 use chacha20poly1305::aead::OsRng;
+use chacha20poly1305::aead::generic_array::GenericArray;
 use dialoguer::Confirm;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::Value;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Vault {
     salt: String,
     nonce: String,
     encrypted_data: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PasswordManagerEntry {
     id: String,
     password: String,
@@ -33,7 +33,7 @@ pub struct PasswordManagerEntry {
 
 pub struct PasswordManager {
     vault_file_path: String,
-    vault_data: Option<Value>,
+    vault_data: Option<Vault>,
 }
 
 impl PasswordManager {
@@ -47,18 +47,14 @@ impl PasswordManager {
         }
     }
 
-    fn get_vault_data(&self) -> Result<Value, io::Error> {
-        if let Some(vault_data) = &self.vault_data {
-            return Ok(vault_data.clone());
+    fn get_vault_data(&mut self) -> Result<&Vault, io::Error> {
+        if self.vault_data.is_none() {
+            let vault_data_raw = fs::read_to_string(&self.vault_file_path)?;
+            let vault_data: Vault = serde_json::from_str(&vault_data_raw)?;
+            self.vault_data = Some(vault_data);
         }
 
-        let vault_data_raw = fs::read_to_string(&self.vault_file_path)?;
-
-        let vault_data = serde_json::from_str(&vault_data_raw)?;
-
-        // self.vault_data = vault_data;
-
-        Ok(vault_data)
+        Ok(self.vault_data.as_ref().unwrap())
     }
 
     // fn get_derived_key(&self, master_password: &str) -> Result<(), Box<dyn Error>> {}
@@ -95,7 +91,47 @@ impl PasswordManager {
         }
     }
 
-    pub fn initialize(&self) -> Result<(), Box<dyn Error>> {
+    pub fn decrypt_file(
+        &mut self,
+        password: &str,
+    ) -> Result<Vec<PasswordManagerEntry>, Box<dyn Error>> {
+        let vault_data = self.get_vault_data()?;
+
+        let salt = STANDARD.decode(&vault_data.salt)?;
+        let nonce = GenericArray::clone_from_slice(&STANDARD.decode(&vault_data.nonce)?);
+        let encrypted_data = STANDARD.decode(&vault_data.encrypted_data)?;
+
+        let mut password_derive_key = [0u8; 32];
+        let password_hash_result = Argon2::default().hash_password_into(
+            &password.as_bytes(),
+            &salt,
+            &mut password_derive_key,
+        );
+
+        if let Err(_e) = password_hash_result {
+            return Err("Error while generating password hash".into());
+        }
+
+        let cipher = XChaCha20Poly1305::new(&password_derive_key.into());
+
+        let decrypted_data_result = cipher.decrypt(&nonce, encrypted_data.as_ref());
+
+        let entries: Vec<PasswordManagerEntry>;
+        match decrypted_data_result {
+            Err(_e) => {
+                return Err("Error while decrypting".into());
+            }
+            Ok(decrypted_data) => {
+                let entries_json = str::from_utf8(&decrypted_data)?;
+
+                entries = serde_json::from_str(&entries_json)?;
+            }
+        }
+
+        Ok(entries)
+    }
+
+    pub fn initialize(&mut self) -> Result<(), Box<dyn Error>> {
         println!("Verifying if vault file already exists");
         let get_vault_data_result = self.get_vault_data();
 
@@ -165,6 +201,11 @@ impl PasswordManager {
             "Vault has been created successfully at {}",
             &self.vault_file_path
         );
+
+        let entries = &self.decrypt_file(&password)?;
+
+        println!("{:?}", entries);
+
         Ok({})
     }
 }

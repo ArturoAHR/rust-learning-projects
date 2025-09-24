@@ -115,6 +115,30 @@ impl PasswordManager {
         Ok({})
     }
 
+    pub fn add_password_entry(&mut self) -> Result<(), Box<dyn Error>> {
+        let password = self.prompt_master_password()?;
+
+        let mut entries = self.decrypt_file(&password)?;
+
+        let stdin = io::stdin();
+        println!("Introduce the ID of the new password entry:");
+
+        let entry_id = &mut String::new();
+        stdin.read_line(entry_id)?;
+
+        println!("Introduce the password tied to this entry:");
+        let entry_password = rpassword::read_password()?;
+
+        entries.push(PasswordManagerEntry {
+            id: entry_id.trim().into(),
+            password: entry_password,
+        });
+
+        self.encrypt_file(&password, entries)?;
+
+        Ok({})
+    }
+
     pub fn get_password(&mut self) -> Result<(), Box<dyn Error>> {
         let mut clipboard = Clipboard::new()?;
         let password = self.prompt_master_password()?;
@@ -198,7 +222,6 @@ impl PasswordManager {
         OsRng.fill_bytes(&mut nonce_bytes);
         let nonce = XNonce::from_slice(&nonce_bytes);
 
-        println!("{json_entries}");
         let data_encryption_result = cipher.encrypt(nonce, json_entries.as_bytes());
 
         match data_encryption_result {

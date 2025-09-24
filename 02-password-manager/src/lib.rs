@@ -3,7 +3,11 @@ use std::error::Error;
 use std::fs;
 use std::io;
 use std::io::Write;
+use std::thread;
+use std::time::Duration;
+use std::u32;
 
+use arboard::Clipboard;
 use argon2::Argon2;
 use argon2::password_hash::rand_core::RngCore;
 use base64::Engine;
@@ -25,7 +29,7 @@ pub struct Vault {
     encrypted_data: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PasswordManagerEntry {
     id: String,
     password: String,
@@ -104,8 +108,60 @@ impl PasswordManager {
         let entries = self.decrypt_file(&password)?;
 
         println!("List of password IDs:");
-        for (i, entry) in entries.iter().enumerate() {
-            println!("{} - {}", i + 1, entry.id);
+        for (index, entry) in entries.iter().enumerate() {
+            println!("{} - {}", index + 1, entry.id);
+        }
+
+        Ok({})
+    }
+
+    pub fn get_password(&mut self) -> Result<(), Box<dyn Error>> {
+        let mut clipboard = Clipboard::new()?;
+        let password = self.prompt_master_password()?;
+
+        let entries = self.decrypt_file(&password)?;
+
+        println!("Insert the ID of the password you wish to retrieve: ");
+
+        let stdin = io::stdin();
+        let user_input = &mut String::new();
+        stdin.read_line(user_input)?;
+
+        let password_id = &user_input.trim();
+        let mut password_index: Option<u32> = None;
+
+        let parse_password_id_to_index_result = user_input.trim().parse::<u32>();
+        if let Ok(index) = parse_password_id_to_index_result {
+            password_index = Some(index);
+        }
+
+        let mut selected_entry: Option<PasswordManagerEntry> = None;
+        for entry in entries.iter() {
+            if entry.id.as_str() == *password_id {
+                selected_entry = Some(entry.clone());
+                break;
+            }
+        }
+
+        if let None = selected_entry {
+            if let Some(searched_index) = password_index {
+                for (index, entry) in entries.iter().enumerate() {
+                    if (index + 1) as u64 == searched_index as u64 {
+                        selected_entry = Some(entry.clone());
+                    }
+                }
+            }
+        }
+
+        if let Some(entry) = &selected_entry {
+            clipboard.set_text(&entry.password)?;
+            thread::sleep(Duration::from_millis(200));
+
+            println!("The password has been copied to your clipboard")
+        }
+
+        if let None = selected_entry {
+            println!("There is no password with id {user_input}")
         }
 
         Ok({})

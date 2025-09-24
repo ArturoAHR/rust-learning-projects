@@ -39,7 +39,7 @@ fn run(command: ArgMatches) -> Result<(), Box<dyn Error>> {
     return match command.subcommand() {
         Some(("init", _)) => password_manager.initialize(),
         Some(("add", _)) => Ok({}),
-        Some(("get", _)) => Ok({}),
+        Some(("get", _)) => password_manager.get_password(),
         Some(("list", _)) => password_manager.list_password_ids(),
         _ => Err("Command not supported".into()),
     };

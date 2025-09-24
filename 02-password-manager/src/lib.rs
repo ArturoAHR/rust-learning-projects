@@ -179,7 +179,7 @@ impl PasswordManager {
 
         if let Some(entry) = &selected_entry {
             clipboard.set_text(&entry.password)?;
-            thread::sleep(Duration::from_millis(200));
+            thread::sleep(Duration::from_millis(10));
 
             println!("The password has been copied to your clipboard")
         }

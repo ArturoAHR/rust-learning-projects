@@ -1,4 +1,4 @@
-use clap::{ArgMatches, Command, arg};
+use clap::{ArgMatches, Command};
 use password_manager::PasswordManager;
 use std::error::Error;
 use std::process;
@@ -10,15 +10,9 @@ fn get_arg_matches() -> ArgMatches {
         .subcommand(
             Command::new("init").about("To set up your master password and password storage."),
         )
+        .subcommand(Command::new("add").about("Adds a password under the given name."))
         .subcommand(
-            Command::new("add")
-                .about("Adds a password under the given name.")
-                .arg(arg!([name] "Password Identifier")),
-        )
-        .subcommand(
-            Command::new("get")
-                .about("Allows you to get a password identified by the given name.")
-                .arg(arg!([name] "Password Identifier")),
+            Command::new("get").about("Allows you to get a password identified by the given name."),
         )
         .subcommand(Command::new("list").about("Displays all the registered names."))
         .get_matches()

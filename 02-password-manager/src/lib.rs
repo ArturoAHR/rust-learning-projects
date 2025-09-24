@@ -91,6 +91,26 @@ impl PasswordManager {
         }
     }
 
+    fn prompt_master_password(&self) -> Result<String, Box<dyn Error>> {
+        println!("Please enter your master password:");
+        let password = rpassword::read_password()?;
+
+        return Ok(password.clone());
+    }
+
+    pub fn list_password_ids(&mut self) -> Result<(), Box<dyn Error>> {
+        let password = self.prompt_master_password()?;
+
+        let entries = self.decrypt_file(&password)?;
+
+        println!("List of password IDs:");
+        for (i, entry) in entries.iter().enumerate() {
+            println!("{} - {}", i + 1, entry.id);
+        }
+
+        Ok({})
+    }
+
     pub fn encrypt_file(
         &mut self,
         password: &str,
@@ -137,6 +157,7 @@ impl PasswordManager {
 
                 vault_file.write_all(&vault_json.as_bytes())?;
                 vault_file.flush()?;
+                self.vault_data = None;
             }
             Err(_e) => return Err("Error while performing encryption".into()),
         }
@@ -247,6 +268,7 @@ impl PasswordManager {
 
                 vault_file.write_all(&vault_json.as_bytes())?;
                 vault_file.flush()?;
+                self.vault_data = None;
             }
             Err(_e) => return Err("Error while performing encryption".into()),
         }
@@ -255,23 +277,6 @@ impl PasswordManager {
             "Vault has been created successfully at {}",
             &self.vault_file_path
         );
-
-        let entries = &self.decrypt_file(&password)?;
-
-        println!("{:?}", entries);
-
-        let mut vec: Vec<PasswordManagerEntry> = Vec::new();
-
-        vec.push(PasswordManagerEntry {
-            id: "test 2".into(),
-            password: "test 2".into(),
-        });
-
-        self.encrypt_file(&password, vec)?;
-
-        let entries = &self.decrypt_file(&password)?;
-
-        println!("{:?}", entries);
 
         Ok({})
     }

@@ -54,7 +54,7 @@ impl PasswordManager {
             self.vault_data = Some(vault_data);
         }
 
-        Ok(self.vault_data.as_ref().unwrap())
+        Ok(&self.vault_data.as_ref().unwrap())
     }
 
     // fn get_derived_key(&self, master_password: &str) -> Result<(), Box<dyn Error>> {}
@@ -89,6 +89,59 @@ impl PasswordManager {
 
             println!("The passwords do not match, repeating the process");
         }
+    }
+
+    pub fn encrypt_file(
+        &mut self,
+        password: &str,
+        entries: Vec<PasswordManagerEntry>,
+    ) -> Result<(), Box<dyn Error>> {
+        let mut vault_file = fs::OpenOptions::new()
+            .write(true)
+            .open(&self.vault_file_path)?;
+
+        let json_entries = serde_json::to_string_pretty(&entries)?;
+
+        let mut salt = vec![0u8; 16];
+        OsRng.fill_bytes(&mut salt);
+
+        let mut password_derive_key = [0u8; 32];
+        let password_hash_result = Argon2::default().hash_password_into(
+            &password.as_bytes(),
+            &salt,
+            &mut password_derive_key,
+        );
+
+        if let Err(_e) = password_hash_result {
+            return Err("Error while generating password hash".into());
+        }
+
+        let cipher = XChaCha20Poly1305::new(&password_derive_key.into());
+
+        let mut nonce_bytes = [0u8; 24];
+        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = XNonce::from_slice(&nonce_bytes);
+
+        println!("{json_entries}");
+        let data_encryption_result = cipher.encrypt(nonce, json_entries.as_bytes());
+
+        match data_encryption_result {
+            Ok(encrypted_data) => {
+                let vault = Vault {
+                    salt: STANDARD.encode(salt),
+                    nonce: STANDARD.encode(nonce.to_vec()),
+                    encrypted_data: STANDARD.encode(encrypted_data),
+                };
+
+                let vault_json = serde_json::to_string_pretty(&vault)?;
+
+                vault_file.write_all(&vault_json.as_bytes())?;
+                vault_file.flush()?;
+            }
+            Err(_e) => return Err("Error while performing encryption".into()),
+        }
+
+        Ok({})
     }
 
     pub fn decrypt_file(
@@ -193,6 +246,7 @@ impl PasswordManager {
                 let vault_json = serde_json::to_string_pretty(&vault)?;
 
                 vault_file.write_all(&vault_json.as_bytes())?;
+                vault_file.flush()?;
             }
             Err(_e) => return Err("Error while performing encryption".into()),
         }
@@ -201,6 +255,19 @@ impl PasswordManager {
             "Vault has been created successfully at {}",
             &self.vault_file_path
         );
+
+        let entries = &self.decrypt_file(&password)?;
+
+        println!("{:?}", entries);
+
+        let mut vec: Vec<PasswordManagerEntry> = Vec::new();
+
+        vec.push(PasswordManagerEntry {
+            id: "test 2".into(),
+            password: "test 2".into(),
+        });
+
+        self.encrypt_file(&password, vec)?;
 
         let entries = &self.decrypt_file(&password)?;
 

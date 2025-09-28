@@ -120,16 +120,10 @@ impl PasswordManager {
         Ok({})
     }
 
-    pub fn add_password_entry(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn add_password_entry(&mut self, entry_id: &str) -> Result<(), Box<dyn Error>> {
         let password = self.prompt_master_password()?;
 
         let mut entries = self.decrypt_file(&password)?;
-
-        let stdin = io::stdin();
-        println!("Introduce the ID of the new password entry:");
-
-        let entry_id = &mut String::new();
-        stdin.read_line(entry_id)?;
 
         println!("Introduce the password tied to this entry:");
         let entry_password = rpassword::read_password()?;
@@ -144,22 +138,16 @@ impl PasswordManager {
         Ok({})
     }
 
-    pub fn get_password(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn get_password(&mut self, entry_id: &str) -> Result<(), Box<dyn Error>> {
         let mut clipboard = Clipboard::new()?;
         let password = self.prompt_master_password()?;
 
         let entries = self.decrypt_file(&password)?;
 
-        println!("Insert the ID of the password you wish to retrieve: ");
-
-        let stdin = io::stdin();
-        let user_input = &mut String::new();
-        stdin.read_line(user_input)?;
-
-        let password_id = &user_input.trim();
+        let password_id = &entry_id.trim();
         let mut password_index: Option<u32> = None;
 
-        let parse_password_id_to_index_result = user_input.trim().parse::<u32>();
+        let parse_password_id_to_index_result = entry_id.trim().parse::<u32>();
         if let Ok(index) = parse_password_id_to_index_result {
             password_index = Some(index);
         }
@@ -190,7 +178,7 @@ impl PasswordManager {
         }
 
         if let None = selected_entry {
-            println!("There is no password with id {user_input}")
+            println!("There is no password with id {entry_id}")
         }
 
         Ok({})

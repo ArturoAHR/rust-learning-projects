@@ -30,16 +30,14 @@ enum Commands {
 
     /// Adds a password entry under the given name.
     Add {
-        // /// The name of the new entry.
-        // #[arg(short, long)]
-        // entry: String,
+        /// The name of the new entry.
+        entry: String,
     },
 
     /// Allows you to get a password entry identified by the given name.
     Get {
-        // /// The name of the existing entry.
-        // #[arg(short, long)]
-        // entry: String,
+        /// The name of the existing entry.
+        entry: String,
     },
 }
 
@@ -57,8 +55,8 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
     return match &args.command {
         Some(Commands::Init {}) => password_manager.initialize(),
-        Some(Commands::Add {}) => password_manager.add_password_entry(),
-        Some(Commands::Get {}) => password_manager.get_password(),
+        Some(Commands::Add { entry }) => password_manager.add_password_entry(&entry),
+        Some(Commands::Get { entry }) => password_manager.get_password(&entry),
         Some(Commands::List {}) => password_manager.list_password_ids(),
         None => Err("Command not supported".into()),
     };

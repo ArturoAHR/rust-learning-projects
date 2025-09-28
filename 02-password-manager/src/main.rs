@@ -13,7 +13,7 @@ use std::process;
 )]
 struct Args {
     /// Vault file path, you can also set this value with the PASSWORD_MANAGER_VAULT_FILE_PATH environment variable.
-    #[arg(short)]
+    #[arg(short, long)]
     vault: Option<String>,
 
     #[command(subcommand)]

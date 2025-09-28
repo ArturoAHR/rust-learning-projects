@@ -236,7 +236,19 @@ impl PasswordManager {
         &mut self,
         password: &str,
     ) -> Result<Vec<PasswordManagerEntry>, Box<dyn Error>> {
-        let vault_data = self.get_vault_data()?;
+        let vault_data: Vault;
+        let get_vault_data_result = self.get_vault_data();
+
+        match get_vault_data_result {
+            Ok(data) => vault_data = data,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                let error_message =
+                    format!("Vault file doesn't exist at location: {}", &self.vault_path);
+
+                return Err(error_message.into());
+            }
+            Err(error) => return Err(error.into()),
+        }
 
         let salt = STANDARD.decode(&vault_data.salt)?;
         let nonce = GenericArray::clone_from_slice(&STANDARD.decode(&vault_data.nonce)?);

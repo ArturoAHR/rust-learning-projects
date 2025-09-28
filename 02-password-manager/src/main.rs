@@ -12,7 +12,7 @@ use std::process;
     long_about = "Helps you securely manage your passwords behind a master password"
 )]
 struct Args {
-    /// Vault file path
+    /// Vault file path, you can also set this value with the PASSWORD_MANAGER_VAULT_FILE_PATH environment variable.
     #[arg(short)]
     vault: Option<String>,
 

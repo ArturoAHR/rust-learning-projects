@@ -39,24 +39,26 @@ pub struct PasswordManagerEntry {
 }
 
 pub struct PasswordManager {
-    vault_file_path: String,
+    vault_path: String,
     vault_data: Option<Vault>,
 }
 
 impl PasswordManager {
-    pub fn new() -> PasswordManager {
-        let vault_file_path =
+    pub fn new(user_vault_path: Option<String>) -> PasswordManager {
+        let default_path =
             env::var("PASSWORD_MANAGER_VAULT_FILE_PATH").unwrap_or("./vault.json".into());
 
+        let resolved_path = user_vault_path.unwrap_or(default_path);
+
         PasswordManager {
-            vault_file_path,
+            vault_path: resolved_path,
             vault_data: None,
         }
     }
 
     fn get_vault_data(&mut self) -> Result<&Vault, io::Error> {
         if self.vault_data.is_none() {
-            let vault_data_raw = fs::read_to_string(&self.vault_file_path)?;
+            let vault_data_raw = fs::read_to_string(&self.vault_path)?;
             let vault_data: Vault = serde_json::from_str(&vault_data_raw)?;
             self.vault_data = Some(vault_data);
         }
@@ -67,7 +69,7 @@ impl PasswordManager {
     // fn get_derived_key(&self, master_password: &str) -> Result<(), Box<dyn Error>> {}
 
     fn reset_vault(&self) -> Result<(), io::Error> {
-        fs::remove_file(&self.vault_file_path)?;
+        fs::remove_file(&self.vault_path)?;
 
         Ok({})
     }
@@ -199,9 +201,7 @@ impl PasswordManager {
         password: &str,
         entries: Vec<PasswordManagerEntry>,
     ) -> Result<(), Box<dyn Error>> {
-        let mut vault_file = fs::OpenOptions::new()
-            .write(true)
-            .open(&self.vault_file_path)?;
+        let mut vault_file = fs::OpenOptions::new().write(true).open(&self.vault_path)?;
 
         let json_entries = serde_json::to_string_pretty(&entries)?;
 
@@ -312,7 +312,7 @@ impl PasswordManager {
 
         let entries: Vec<PasswordManagerEntry> = Vec::new();
 
-        let mut vault_file = fs::File::create(&self.vault_file_path)?;
+        let mut vault_file = fs::File::create(&self.vault_path)?;
 
         let json_entries = serde_json::to_string_pretty(&entries)?;
 
@@ -357,7 +357,7 @@ impl PasswordManager {
 
         println!(
             "Vault has been created successfully at {}",
-            &self.vault_file_path
+            &self.vault_path
         );
 
         Ok({})

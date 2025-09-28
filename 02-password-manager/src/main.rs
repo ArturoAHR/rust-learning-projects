@@ -12,9 +12,10 @@ use std::process;
     long_about = "Helps you securely manage your passwords behind a master password"
 )]
 struct Args {
-    // /// Vault file path
-    // #[arg(short)]
-    // vault: String,
+    /// Vault file path
+    #[arg(short)]
+    vault: Option<String>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -31,14 +32,14 @@ enum Commands {
     Add {
         // /// The name of the new entry.
         // #[arg(short, long)]
-        // name: String,
+        // entry: String,
     },
 
     /// Allows you to get a password entry identified by the given name.
     Get {
         // /// The name of the existing entry.
         // #[arg(short, long)]
-        // name: String,
+        // entry: String,
     },
 }
 
@@ -52,7 +53,7 @@ fn main() {
 }
 
 fn run(args: Args) -> Result<(), Box<dyn Error>> {
-    let mut password_manager = PasswordManager::new();
+    let mut password_manager = PasswordManager::new(args.vault);
 
     return match &args.command {
         Some(Commands::Init {}) => password_manager.initialize(),

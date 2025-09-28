@@ -1,42 +1,64 @@
 mod password_manager;
 
-use clap::{ArgMatches, Command};
+use clap::{Parser, Subcommand};
 use password_manager::PasswordManager;
 use std::error::Error;
 use std::process;
 
-fn get_arg_matches() -> ArgMatches {
-    Command::new("password-manager")
-        .version("0.1.0")
-        .about("Helps you securely manage your passwords behind a master password")
-        .subcommand(
-            Command::new("init").about("To set up your master password and password storage."),
-        )
-        .subcommand(Command::new("add").about("Adds a password under the given name."))
-        .subcommand(
-            Command::new("get").about("Allows you to get a password identified by the given name."),
-        )
-        .subcommand(Command::new("list").about("Displays all the registered names."))
-        .get_matches()
+#[derive(Parser)]
+#[command(
+    version = "0.1.0",
+    about,
+    long_about = "Helps you securely manage your passwords behind a master password"
+)]
+struct Args {
+    // /// Vault file path
+    // #[arg(short)]
+    // vault: String,
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// To set up your master password and password storage.
+    Init {},
+
+    /// Displays all the registered names.
+    List {},
+
+    /// Adds a password entry under the given name.
+    Add {
+        // /// The name of the new entry.
+        // #[arg(short, long)]
+        // name: String,
+    },
+
+    /// Allows you to get a password entry identified by the given name.
+    Get {
+        // /// The name of the existing entry.
+        // #[arg(short, long)]
+        // name: String,
+    },
 }
 
 fn main() {
-    let command = get_arg_matches();
+    let args = Args::parse();
 
-    if let Err(e) = run(command) {
+    if let Err(e) = run(args) {
         eprintln!("Application error: {e}");
         process::exit(1);
     }
 }
 
-fn run(command: ArgMatches) -> Result<(), Box<dyn Error>> {
+fn run(args: Args) -> Result<(), Box<dyn Error>> {
     let mut password_manager = PasswordManager::new();
 
-    return match command.subcommand() {
-        Some(("init", _)) => password_manager.initialize(),
-        Some(("add", _)) => password_manager.add_password_entry(),
-        Some(("get", _)) => password_manager.get_password(),
-        Some(("list", _)) => password_manager.list_password_ids(),
-        _ => Err("Command not supported".into()),
+    return match &args.command {
+        Some(Commands::Init {}) => password_manager.initialize(),
+        Some(Commands::Add {}) => password_manager.add_password_entry(),
+        Some(Commands::Get {}) => password_manager.get_password(),
+        Some(Commands::List {}) => password_manager.list_password_ids(),
+        None => Err("Command not supported".into()),
     };
 }

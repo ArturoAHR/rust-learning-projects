@@ -40,7 +40,6 @@ pub struct PasswordManagerEntry {
 
 pub struct PasswordManager {
     vault_path: String,
-    vault_data: Option<Vault>,
 }
 
 impl PasswordManager {
@@ -52,18 +51,15 @@ impl PasswordManager {
 
         PasswordManager {
             vault_path: resolved_path,
-            vault_data: None,
         }
     }
 
-    fn get_vault_data(&mut self) -> Result<&Vault, io::Error> {
-        if self.vault_data.is_none() {
-            let vault_data_raw = fs::read_to_string(&self.vault_path)?;
-            let vault_data: Vault = serde_json::from_str(&vault_data_raw)?;
-            self.vault_data = Some(vault_data);
-        }
+    fn get_vault_data(&mut self) -> Result<Vault, io::Error> {
+        let vault_data_raw = fs::read_to_string(&self.vault_path)?;
 
-        Ok(&self.vault_data.as_ref().unwrap())
+        let vault_data: Vault = serde_json::from_str(&vault_data_raw)?;
+
+        Ok(vault_data)
     }
 
     // fn get_derived_key(&self, master_password: &str) -> Result<(), Box<dyn Error>> {}
@@ -229,7 +225,6 @@ impl PasswordManager {
 
                 vault_file.write_all(&vault_json.as_bytes())?;
                 vault_file.flush()?;
-                self.vault_data = None;
             }
             Err(_e) => return Err("Error while performing encryption".into()),
         }
@@ -340,7 +335,6 @@ impl PasswordManager {
 
                 vault_file.write_all(&vault_json.as_bytes())?;
                 vault_file.flush()?;
-                self.vault_data = None;
             }
             Err(_e) => return Err("Error while performing encryption".into()),
         }

@@ -79,6 +79,8 @@ impl PasswordManager {
 
         if data_reset_confirmation {
             self.reset_vault()?;
+        } else {
+            return Err("Vault file already exists.".into());
         }
 
         Ok({})

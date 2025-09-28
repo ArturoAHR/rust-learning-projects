@@ -1,3 +1,5 @@
+mod password_manager;
+
 use clap::{ArgMatches, Command};
 use password_manager::PasswordManager;
 use std::error::Error;

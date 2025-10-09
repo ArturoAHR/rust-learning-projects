@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{env, error::Error, fs, io::Write};
 
 use crate::password_manager::{models::Vault, traits::VaultIO};
 
@@ -7,19 +7,47 @@ pub struct VaultFileIO {
 }
 
 impl VaultFileIO {
-    pub fn new(vault_path: String) -> Self {
-        VaultFileIO { vault_path }
+    pub fn new(user_vault_path: Option<String>) -> Self {
+        let default_path =
+            env::var("PASSWORD_MANAGER_VAULT_FILE_PATH").unwrap_or("./vault.json".into());
+
+        let resolved_path = user_vault_path.unwrap_or(default_path);
+
+        VaultFileIO {
+            vault_path: resolved_path,
+        }
     }
 }
 
 impl VaultIO for VaultFileIO {
     fn create_vault(&self) -> Result<(), Box<dyn Error>> {
-        unimplemented!()
+        fs::File::create(&self.vault_path)?;
+
+        Ok(())
     }
+
     fn read_vault(&self) -> Result<Vault, Box<dyn Error>> {
-        unimplemented!()
+        let vault_data_raw = fs::read_to_string(&self.vault_path)?;
+
+        let vault_data: Vault = serde_json::from_str(&vault_data_raw)?;
+
+        Ok(vault_data)
     }
+
     fn write_to_vault(&self, data: &Vault) -> Result<(), Box<dyn Error>> {
-        unimplemented!()
+        let mut vault_file = fs::OpenOptions::new().write(true).open(&self.vault_path)?;
+
+        let vault_json = serde_json::to_string_pretty(&data)?;
+
+        vault_file.write_all(&vault_json.as_bytes())?;
+        vault_file.flush()?;
+
+        Ok(())
+    }
+
+    fn delete_vault(&self) -> Result<(), Box<dyn Error>> {
+        fs::remove_file(&self.vault_path)?;
+
+        Ok({})
     }
 }

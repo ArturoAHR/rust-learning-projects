@@ -20,6 +20,10 @@ impl VaultFileIO {
 }
 
 impl VaultIO for VaultFileIO {
+    fn get_vault_path(&self) -> Result<&String, Box<dyn Error>> {
+        Ok(&self.vault_path)
+    }
+
     fn create_vault(&self) -> Result<(), Box<dyn Error>> {
         fs::File::create(&self.vault_path)?;
 
@@ -29,9 +33,12 @@ impl VaultIO for VaultFileIO {
     fn read_vault(&self) -> Result<Vault, Box<dyn Error>> {
         let vault_data_raw = fs::read_to_string(&self.vault_path)?;
 
-        let vault_data: Vault = serde_json::from_str(&vault_data_raw)?;
+        let vault_data_parse_result = serde_json::from_str(&vault_data_raw);
 
-        Ok(vault_data)
+        match vault_data_parse_result {
+            Ok(vault_data) => Ok(vault_data),
+            Err(error) => Err(Box::new(error) as Box<dyn Error>),
+        }
     }
 
     fn write_to_vault(&self, data: &Vault) -> Result<(), Box<dyn Error>> {

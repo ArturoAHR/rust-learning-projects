@@ -1,5 +1,4 @@
-#[cfg(test)]
-mod tests;
+mod models;
 
 use std::env;
 use std::error::Error;
@@ -22,21 +21,9 @@ use chacha20poly1305::aead::Aead;
 use chacha20poly1305::aead::OsRng;
 use chacha20poly1305::aead::generic_array::GenericArray;
 use dialoguer::Confirm;
-use serde::Deserialize;
-use serde::Serialize;
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Vault {
-    salt: String,
-    nonce: String,
-    encrypted_data: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PasswordManagerEntry {
-    id: String,
-    password: String,
-}
+use crate::password_manager::models::PasswordManagerEntry;
+use crate::password_manager::models::Vault;
 
 pub struct PasswordManager {
     vault_path: String,

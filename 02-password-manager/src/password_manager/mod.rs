@@ -110,10 +110,10 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
             password_index = Some(index);
         }
 
-        let mut selected_entry: Option<PasswordManagerEntry> = None;
+        let mut selected_entry: Option<&PasswordManagerEntry> = None;
         for entry in entries.iter() {
             if entry.id.as_str() == *password_id {
-                selected_entry = Some(entry.clone());
+                selected_entry = Some(&entry);
                 break;
             }
         }
@@ -122,7 +122,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
             if let Some(searched_index) = password_index {
                 for (index, entry) in entries.iter().enumerate() {
                     if (index + 1) as u64 == searched_index as u64 {
-                        selected_entry = Some(entry.clone());
+                        selected_entry = Some(&entry);
                     }
                 }
             }

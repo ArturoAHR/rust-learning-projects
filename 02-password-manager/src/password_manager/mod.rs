@@ -118,7 +118,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
             }
         }
 
-        if let None = selected_entry {
+        if selected_entry.is_none() {
             if let Some(searched_index) = password_index {
                 for (index, entry) in entries.iter().enumerate() {
                     if (index + 1) as u64 == searched_index as u64 {
@@ -135,7 +135,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
             println!("The password has been copied to your clipboard")
         }
 
-        if let None = selected_entry {
+        if selected_entry.is_none() {
             println!("There is no password with id {entry_id}")
         }
 

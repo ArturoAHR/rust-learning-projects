@@ -1,9 +1,13 @@
 mod password_manager;
 
-use clap::{Parser, Subcommand};
-use password_manager::PasswordManager;
 use std::error::Error;
 use std::process;
+
+use clap::{Parser, Subcommand};
+
+use crate::password_manager::{
+    PasswordManager, vault_encryption::VaultEncryption, vault_file_io::VaultFileIO,
+};
 
 #[derive(Parser)]
 #[command(
@@ -51,7 +55,11 @@ fn main() {
 }
 
 fn run(args: Args) -> Result<(), Box<dyn Error>> {
-    let mut password_manager = PasswordManager::new(args.vault);
+    let vault_file_io = VaultFileIO::new(args.vault);
+
+    let vault_encryption = VaultEncryption::new(&vault_file_io);
+
+    let mut password_manager = PasswordManager::new(&vault_encryption, &vault_file_io);
 
     return match &args.command {
         Some(Commands::Init {}) => password_manager.initialize(),

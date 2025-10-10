@@ -12,19 +12,19 @@ use crate::password_manager::{
     traits::{VaultEncryptor, VaultIO},
 };
 
-pub struct VaultEncryption<IO: VaultIO> {
-    vault_io: IO,
+pub struct VaultEncryption<'a, T: VaultIO> {
+    vault_io: &'a T,
 }
 
-impl<IO: VaultIO> VaultEncryption<IO> {
-    pub fn new(vault_io_service: IO) -> Self {
+impl<'a, T: VaultIO> VaultEncryption<'a, T> {
+    pub fn new(vault_io_service: &'a T) -> Self {
         VaultEncryption {
             vault_io: vault_io_service,
         }
     }
 }
 
-impl<IO: VaultIO> VaultEncryptor for VaultEncryption<IO> {
+impl<'a, T: VaultIO> VaultEncryptor for VaultEncryption<'a, T> {
     fn decrypt_vault_entries(
         &self,
         password: &str,

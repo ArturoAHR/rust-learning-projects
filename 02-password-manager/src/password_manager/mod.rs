@@ -1,67 +1,39 @@
 mod models;
+mod traits;
+pub mod vault_encryption;
+pub mod vault_file_io;
 
-use std::env;
 use std::error::Error;
-use std::fs;
 use std::io;
-use std::io::Write;
 use std::thread;
 use std::time::Duration;
 use std::u32;
 
 use arboard::Clipboard;
-use argon2::Argon2;
-use argon2::password_hash::rand_core::RngCore;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
-use chacha20poly1305::KeyInit;
-use chacha20poly1305::XChaCha20Poly1305;
-use chacha20poly1305::XNonce;
-use chacha20poly1305::aead::Aead;
-use chacha20poly1305::aead::OsRng;
-use chacha20poly1305::aead::generic_array::GenericArray;
 use dialoguer::Confirm;
 
 use crate::password_manager::models::PasswordManagerEntry;
-use crate::password_manager::models::Vault;
+use crate::password_manager::traits::VaultEncryptor;
+use crate::password_manager::traits::VaultIO;
 
-pub struct PasswordManager {
-    vault_path: String,
+pub struct PasswordManager<'a, T: VaultEncryptor, U: VaultIO> {
+    vault_encryptor: &'a T,
+    vault_io: &'a U,
 }
 
-impl PasswordManager {
-    pub fn new(user_vault_path: Option<String>) -> PasswordManager {
-        let default_path =
-            env::var("PASSWORD_MANAGER_VAULT_FILE_PATH").unwrap_or("./vault.json".into());
-
-        let resolved_path = user_vault_path.unwrap_or(default_path);
-
+impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
+    pub fn new(vault_encryptor: &'a T, vault_io: &'a U) -> Self {
         PasswordManager {
-            vault_path: resolved_path,
+            vault_io,
+            vault_encryptor,
         }
-    }
-
-    fn get_vault_data(&mut self) -> Result<Vault, io::Error> {
-        let vault_data_raw = fs::read_to_string(&self.vault_path)?;
-
-        let vault_data: Vault = serde_json::from_str(&vault_data_raw)?;
-
-        Ok(vault_data)
-    }
-
-    // fn get_derived_key(&self, master_password: &str) -> Result<(), Box<dyn Error>> {}
-
-    fn reset_vault(&self) -> Result<(), io::Error> {
-        fs::remove_file(&self.vault_path)?;
-
-        Ok({})
     }
 
     fn prompt_reset_vault(&self, message: &str) -> Result<(), Box<dyn Error>> {
         let data_reset_confirmation = Confirm::new().with_prompt(message).interact()?;
 
         if data_reset_confirmation {
-            self.reset_vault()?;
+            self.vault_io.delete_vault()?;
         } else {
             return Err("Vault file already exists.".into());
         }
@@ -95,7 +67,7 @@ impl PasswordManager {
     pub fn list_password_ids(&mut self) -> Result<(), Box<dyn Error>> {
         let password = self.prompt_master_password()?;
 
-        let entries = self.decrypt_file(&password)?;
+        let entries = self.vault_encryptor.decrypt_vault_entries(&password)?;
 
         println!("List of password IDs:");
         for (index, entry) in entries.iter().enumerate() {
@@ -108,7 +80,7 @@ impl PasswordManager {
     pub fn add_password_entry(&mut self, entry_id: &str) -> Result<(), Box<dyn Error>> {
         let password = self.prompt_master_password()?;
 
-        let mut entries = self.decrypt_file(&password)?;
+        let mut entries = self.vault_encryptor.decrypt_vault_entries(&password)?;
 
         println!("Introduce the password tied to this entry:");
         let entry_password = rpassword::read_password()?;
@@ -118,7 +90,8 @@ impl PasswordManager {
             password: entry_password,
         });
 
-        self.encrypt_file(&password, entries)?;
+        self.vault_encryptor
+            .encrypt_vault_entries(&password, &entries)?;
 
         Ok({})
     }
@@ -127,7 +100,7 @@ impl PasswordManager {
         let mut clipboard = Clipboard::new()?;
         let password = self.prompt_master_password()?;
 
-        let entries = self.decrypt_file(&password)?;
+        let entries = self.vault_encryptor.decrypt_vault_entries(&password)?;
 
         let password_id = &entry_id.trim();
         let mut password_index: Option<u32> = None;
@@ -169,111 +142,9 @@ impl PasswordManager {
         Ok({})
     }
 
-    pub fn encrypt_file(
-        &mut self,
-        password: &str,
-        entries: Vec<PasswordManagerEntry>,
-    ) -> Result<(), Box<dyn Error>> {
-        let mut vault_file = fs::OpenOptions::new().write(true).open(&self.vault_path)?;
-
-        let json_entries = serde_json::to_string_pretty(&entries)?;
-
-        let mut salt = vec![0u8; 16];
-        OsRng.fill_bytes(&mut salt);
-
-        let mut password_derive_key = [0u8; 32];
-        let password_hash_result = Argon2::default().hash_password_into(
-            &password.as_bytes(),
-            &salt,
-            &mut password_derive_key,
-        );
-
-        if let Err(_e) = password_hash_result {
-            return Err("Error while generating password hash".into());
-        }
-
-        let cipher = XChaCha20Poly1305::new(&password_derive_key.into());
-
-        let mut nonce_bytes = [0u8; 24];
-        OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce = XNonce::from_slice(&nonce_bytes);
-
-        let data_encryption_result = cipher.encrypt(nonce, json_entries.as_bytes());
-
-        match data_encryption_result {
-            Ok(encrypted_data) => {
-                let vault = Vault {
-                    salt: STANDARD.encode(salt),
-                    nonce: STANDARD.encode(nonce.to_vec()),
-                    encrypted_data: STANDARD.encode(encrypted_data),
-                };
-
-                let vault_json = serde_json::to_string_pretty(&vault)?;
-
-                vault_file.write_all(&vault_json.as_bytes())?;
-                vault_file.flush()?;
-            }
-            Err(_e) => return Err("Error while performing encryption".into()),
-        }
-
-        Ok({})
-    }
-
-    pub fn decrypt_file(
-        &mut self,
-        password: &str,
-    ) -> Result<Vec<PasswordManagerEntry>, Box<dyn Error>> {
-        let vault_data: Vault;
-        let get_vault_data_result = self.get_vault_data();
-
-        match get_vault_data_result {
-            Ok(data) => vault_data = data,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                let error_message =
-                    format!("Vault file doesn't exist at location: {}", &self.vault_path);
-
-                return Err(error_message.into());
-            }
-            Err(error) => return Err(error.into()),
-        }
-
-        let salt = STANDARD.decode(&vault_data.salt)?;
-        let nonce = GenericArray::clone_from_slice(&STANDARD.decode(&vault_data.nonce)?);
-        let encrypted_data = STANDARD.decode(&vault_data.encrypted_data)?;
-
-        let mut password_derive_key = [0u8; 32];
-        let password_hash_result = Argon2::default().hash_password_into(
-            &password.as_bytes(),
-            &salt,
-            &mut password_derive_key,
-        );
-
-        if let Err(_e) = password_hash_result {
-            return Err("Error while generating password hash".into());
-        }
-
-        let cipher = XChaCha20Poly1305::new(&password_derive_key.into());
-
-        let decrypted_data_result = cipher.decrypt(&nonce, encrypted_data.as_ref());
-
-        let entries: Vec<PasswordManagerEntry>;
-        match decrypted_data_result {
-            Err(_e) => {
-                return Err("Error while decrypting".into());
-            }
-            Ok(decrypted_data) => {
-                let entries_json = str::from_utf8(&decrypted_data)?;
-
-                entries = serde_json::from_str(&entries_json)?;
-            }
-        }
-
-        Ok(entries)
-    }
-
     pub fn initialize(&mut self) -> Result<(), Box<dyn Error>> {
         println!("Verifying if vault file already exists");
-        let get_vault_data_result = self.get_vault_data();
+        let get_vault_data_result = self.vault_io.read_vault();
 
         match get_vault_data_result {
             Ok(_database) => {
@@ -281,10 +152,18 @@ impl PasswordManager {
                     "Your vault file already exists, do you wish to reset it?",
                 )?;
             }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Err(error)
+                if matches!(error.downcast_ref::<io::Error>(), Some(_))
+                    && error.downcast_ref::<io::Error>().unwrap().kind()
+                        == io::ErrorKind::NotFound =>
+            {
                 // File is absent, we continue.
             }
-            Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+            Err(error)
+                if matches!(error.downcast_ref::<io::Error>(), Some(_))
+                    && error.downcast_ref::<io::Error>().unwrap().kind()
+                        == io::ErrorKind::InvalidData =>
+            {
                 self.prompt_reset_vault("Your vault file is corrupted, do you wish to reset it?")?;
             }
             Err(e) => return Err(e.into()),
@@ -294,53 +173,13 @@ impl PasswordManager {
 
         let password = self.prompt_master_password_setup()?;
 
-        let entries: Vec<PasswordManagerEntry> = Vec::new();
+        self.vault_io.create_vault()?;
 
-        let mut vault_file = fs::File::create(&self.vault_path)?;
-
-        let json_entries = serde_json::to_string_pretty(&entries)?;
-
-        let mut salt = vec![0u8; 16];
-        OsRng.fill_bytes(&mut salt);
-
-        let mut password_derive_key = [0u8; 32];
-        let password_hash_result = Argon2::default().hash_password_into(
-            &password.as_bytes(),
-            &salt,
-            &mut password_derive_key,
-        );
-
-        if let Err(_e) = password_hash_result {
-            return Err("Error while generating password hash".into());
-        }
-
-        let cipher = XChaCha20Poly1305::new(&password_derive_key.into());
-
-        let mut nonce_bytes = [0u8; 24];
-        OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce = XNonce::from_slice(&nonce_bytes);
-
-        let data_encryption_result = cipher.encrypt(nonce, json_entries.as_bytes());
-
-        match data_encryption_result {
-            Ok(encrypted_data) => {
-                let vault = Vault {
-                    salt: STANDARD.encode(salt),
-                    nonce: STANDARD.encode(nonce.to_vec()),
-                    encrypted_data: STANDARD.encode(encrypted_data),
-                };
-
-                let vault_json = serde_json::to_string_pretty(&vault)?;
-
-                vault_file.write_all(&vault_json.as_bytes())?;
-                vault_file.flush()?;
-            }
-            Err(_e) => return Err("Error while performing encryption".into()),
-        }
+        self.vault_encryptor.initialize_vault(&password)?;
 
         println!(
             "Vault has been created successfully at {}",
-            &self.vault_path
+            &self.vault_io.get_vault_path()?
         );
 
         Ok({})

@@ -55,6 +55,6 @@ impl VaultIO for VaultFileIO {
     fn delete_vault(&self) -> Result<(), Box<dyn Error>> {
         fs::remove_file(&self.vault_path)?;
 
-        Ok({})
+        Ok(())
     }
 }

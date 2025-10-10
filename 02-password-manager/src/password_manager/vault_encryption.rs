@@ -126,7 +126,7 @@ impl<'a, T: VaultIO> VaultEncryptor for VaultEncryption<'a, T> {
             Err(_e) => return Err("Error while performing encryption".into()),
         }
 
-        Ok({})
+        Ok(())
     }
 
     fn initialize_vault(&self, password: &str) -> Result<(), Box<dyn Error>> {

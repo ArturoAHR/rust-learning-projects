@@ -38,7 +38,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
             return Err("Vault file already exists.".into());
         }
 
-        Ok({})
+        Ok(())
     }
 
     fn prompt_master_password_setup(&self) -> Result<String, Box<dyn Error>> {
@@ -74,7 +74,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
             println!("{} - {}", index + 1, entry.id);
         }
 
-        Ok({})
+        Ok(())
     }
 
     pub fn add_password_entry(&mut self, entry_id: &str) -> Result<(), Box<dyn Error>> {
@@ -93,7 +93,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
         self.vault_encryptor
             .encrypt_vault_entries(&password, &entries)?;
 
-        Ok({})
+        Ok(())
     }
 
     pub fn get_password(&mut self, entry_id: &str) -> Result<(), Box<dyn Error>> {
@@ -139,7 +139,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
             println!("There is no password with id {entry_id}")
         }
 
-        Ok({})
+        Ok(())
     }
 
     pub fn initialize(&mut self) -> Result<(), Box<dyn Error>> {
@@ -182,6 +182,6 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
             &self.vault_io.get_vault_path()?
         );
 
-        Ok({})
+        Ok(())
     }
 }

@@ -94,7 +94,6 @@ impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V
             .decrypt_vault_entries(&password, &vault_data)?;
 
         for entry in entries.iter() {
-            println!("{} {}", entry.id.as_str(), entry_id);
             if entry.id.as_str() == entry_id {
                 return Err("Entry ID already exists in Vault".into());
             }

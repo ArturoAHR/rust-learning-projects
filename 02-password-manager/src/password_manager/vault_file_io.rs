@@ -58,3 +58,77 @@ impl VaultIO for VaultFileIO {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn test_getting_vault_path() {
+        let temp_dir = tempdir().expect("Failed to create temp directory");
+        let vault_path = temp_dir.path().join("test_vault.json");
+        let vault_path_str = vault_path.to_str().unwrap();
+
+        let vault_file_io = VaultFileIO::new(Some(vault_path_str.into()));
+
+        let vault_file_io_path = vault_file_io.get_vault_path().unwrap();
+
+        assert_eq!(&vault_path_str, vault_file_io_path);
+    }
+
+    #[test]
+    fn test_creating_vault() {
+        let temp_dir = tempdir().expect("Failed to create temp directory");
+        let vault_path = temp_dir.path().join("test_vault.json");
+        let vault_path_str = vault_path.to_str().unwrap();
+
+        let vault_file_io = VaultFileIO::new(Some(vault_path_str.into()));
+
+        let _ = vault_file_io.create_vault().unwrap();
+
+        let vault_exists = fs::exists(&vault_path_str).unwrap();
+
+        assert!(vault_exists);
+    }
+
+    #[test]
+    fn test_deleting_vault() {
+        let temp_dir = tempdir().expect("Failed to create temp directory");
+        let vault_path = temp_dir.path().join("test_vault.json");
+        let vault_path_str = vault_path.to_str().unwrap();
+
+        let vault_file_io = VaultFileIO::new(Some(vault_path_str.into()));
+
+        let _ = vault_file_io.create_vault().unwrap();
+        let _ = vault_file_io.delete_vault().unwrap();
+
+        let vault_exists = fs::exists(&vault_path_str).unwrap();
+
+        assert!(!vault_exists);
+    }
+
+    #[test]
+    fn test_reading_into_written_vault() {
+        let temp_dir = tempdir().expect("Failed to create temp directory");
+        let vault_path = temp_dir.path().join("test_vault.json");
+        let vault_path_str = vault_path.to_str().unwrap();
+
+        let vault_file_io = VaultFileIO::new(Some(vault_path_str.into()));
+
+        let test_vault_data: Vault = Vault {
+            encrypted_data: "test encrypted_data".into(),
+            nonce: "test nonce".into(),
+            salt: "test salt".into(),
+        };
+
+        let _ = vault_file_io.create_vault().unwrap();
+        let _ = vault_file_io.write_to_vault(&test_vault_data).unwrap();
+        let vault_data_read = vault_file_io.read_vault().unwrap();
+
+        assert_eq!(test_vault_data, vault_data_read);
+    }
+}

@@ -53,7 +53,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V
             let repeated_password = self.prompter.prompt_password()?;
 
             if password == repeated_password {
-                return Ok(password.clone());
+                return Ok(password);
             }
 
             println!("The passwords do not match, repeating the process");
@@ -64,7 +64,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V
         println!("Please enter your master password:");
         let password = self.prompter.prompt_password()?;
 
-        return Ok(password.clone());
+        return Ok(password);
     }
 
     pub fn list_password_ids(&mut self) -> Result<(), Box<dyn Error>> {
@@ -111,7 +111,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V
             .vault_encryptor
             .encrypt_vault_entries(&password, &entries)?;
 
-        let _ = self.vault_io.write_to_vault(&encrypted_vault);
+        let _ = self.vault_io.write_to_vault(&encrypted_vault)?;
 
         Ok(())
     }
@@ -203,7 +203,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V
             .vault_encryptor
             .encrypt_vault_entries(&password, &Vec::new())?;
 
-        let _ = self.vault_io.write_to_vault(&encrypted_vault);
+        let _ = self.vault_io.write_to_vault(&encrypted_vault)?;
 
         println!(
             "Vault has been created successfully at {}",

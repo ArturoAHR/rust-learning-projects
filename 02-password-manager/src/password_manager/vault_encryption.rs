@@ -103,3 +103,39 @@ impl VaultEncryptor for VaultEncryption {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encryption_and_decryption() {
+        let test_password = "master-password";
+        let mut test_password_entries = Vec::new();
+
+        test_password_entries.push(PasswordManagerEntry {
+            id: "entry-1".into(),
+            password: "password-1".into(),
+        });
+        test_password_entries.push(PasswordManagerEntry {
+            id: "entry-2".into(),
+            password: "password-2".into(),
+        });
+        test_password_entries.push(PasswordManagerEntry {
+            id: "entry-3".into(),
+            password: "password-3".into(),
+        });
+
+        let vault_encryption = VaultEncryption::new();
+
+        let encrypted_vault = vault_encryption
+            .encrypt_vault_entries(&test_password, &test_password_entries)
+            .unwrap();
+
+        let decrypted_entries = vault_encryption
+            .decrypt_vault_entries(&test_password, &encrypted_vault)
+            .unwrap();
+
+        assert_eq!(test_password_entries, decrypted_entries);
+    }
+}

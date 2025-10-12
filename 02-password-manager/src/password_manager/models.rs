@@ -7,7 +7,7 @@ pub struct Vault {
     pub encrypted_data: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct PasswordManagerEntry {
     pub id: String,
     pub password: String,

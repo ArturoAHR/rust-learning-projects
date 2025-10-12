@@ -20,22 +20,20 @@ use crate::password_manager::traits::VaultIO;
 pub struct PasswordManager<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> {
     vault_encryptor: &'a T,
     vault_io: &'a U,
-    password_manager_prompter: &'a V,
+    prompter: &'a V,
 }
 
 impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V> {
-    pub fn new(vault_encryptor: &'a T, vault_io: &'a U, password_manager_prompter: &'a V) -> Self {
+    pub fn new(vault_encryptor: &'a T, vault_io: &'a U, prompter: &'a V) -> Self {
         PasswordManager {
             vault_io,
             vault_encryptor,
-            password_manager_prompter,
+            prompter,
         }
     }
 
     fn prompt_reset_vault(&self, message: &str) -> Result<(), Box<dyn Error>> {
-        let data_reset_confirmation = self
-            .password_manager_prompter
-            .prompt_confirmation(message)?;
+        let data_reset_confirmation = self.prompter.prompt_confirmation(message)?;
 
         if data_reset_confirmation {
             self.vault_io.delete_vault()?;
@@ -49,10 +47,10 @@ impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V
     fn prompt_master_password_setup(&self) -> Result<String, Box<dyn Error>> {
         loop {
             println!("Please enter your master password:");
-            let password = self.password_manager_prompter.prompt_password()?;
+            let password = self.prompter.prompt_password()?;
 
             println!("Enter your master password again to confirm:");
-            let repeated_password = self.password_manager_prompter.prompt_password()?;
+            let repeated_password = self.prompter.prompt_password()?;
 
             if password == repeated_password {
                 return Ok(password.clone());
@@ -64,7 +62,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V
 
     fn prompt_master_password(&self) -> Result<String, Box<dyn Error>> {
         println!("Please enter your master password:");
-        let password = self.password_manager_prompter.prompt_password()?;
+        let password = self.prompter.prompt_password()?;
 
         return Ok(password.clone());
     }
@@ -96,7 +94,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V
             .decrypt_vault_entries(&password, &vault_data)?;
 
         println!("Introduce the password tied to this entry:");
-        let entry_password = rpassword::read_password()?;
+        let entry_password = self.prompter.prompt_password()?;
 
         entries.push(PasswordManagerEntry {
             id: entry_id.trim().into(),
@@ -207,5 +205,185 @@ impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V
         );
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::password_manager::models::Vault;
+
+    use super::*;
+
+    struct MockVaultEncryptor {}
+    struct MockVaultIO {
+        vault_path: String,
+        vault_data: Vault,
+    }
+    struct MockPrompter {
+        password: String,
+        confirmation: bool,
+    }
+
+    impl VaultEncryptor for MockVaultEncryptor {
+        fn encrypt_vault_entries(
+            &self,
+            _password: &str,
+            entries: &Vec<PasswordManagerEntry>,
+        ) -> Result<models::Vault, Box<dyn Error>> {
+            let entries_json = serde_json::to_string_pretty(entries)?;
+
+            Ok(Vault {
+                encrypted_data: entries_json.into(),
+                nonce: "".into(),
+                salt: "".into(),
+            })
+        }
+
+        fn decrypt_vault_entries(
+            &self,
+            _password: &str,
+            vault_data: &models::Vault,
+        ) -> Result<Vec<PasswordManagerEntry>, Box<dyn Error>> {
+            let entries: Vec<PasswordManagerEntry> =
+                serde_json::from_str(&vault_data.encrypted_data)?;
+
+            Ok(entries)
+        }
+    }
+
+    impl VaultIO for MockVaultIO {
+        fn create_vault(&self) -> Result<(), Box<dyn Error>> {
+            Ok(())
+        }
+
+        fn delete_vault(&self) -> Result<(), Box<dyn Error>> {
+            Ok(())
+        }
+
+        fn get_vault_path(&self) -> Result<&String, Box<dyn Error>> {
+            Ok(&self.vault_path)
+        }
+
+        fn read_vault(&self) -> Result<Vault, Box<dyn Error>> {
+            Ok(self.vault_data.clone())
+        }
+
+        fn write_to_vault(&self, _data: &Vault) -> Result<(), Box<dyn Error>> {
+            Ok(())
+        }
+    }
+
+    impl Prompter for MockPrompter {
+        fn prompt_password(&self) -> Result<String, Box<dyn Error>> {
+            Ok(self.password.clone())
+        }
+
+        fn prompt_confirmation(&self, _message: &str) -> Result<bool, Box<dyn Error>> {
+            Ok(self.confirmation)
+        }
+    }
+
+    fn generate_vault_data(entries: &Vec<PasswordManagerEntry>) -> Vault {
+        Vault {
+            encrypted_data: serde_json::to_string_pretty(entries).unwrap().into(),
+            nonce: "".into(),
+            salt: "".into(),
+        }
+    }
+
+    #[test]
+    fn test_listing_passwords() {
+        let mock_entries = vec![PasswordManagerEntry {
+            id: "".into(),
+            password: "".into(),
+        }];
+        let vault_data = generate_vault_data(&mock_entries);
+
+        let mock_vault_encryptor = MockVaultEncryptor {};
+        let mock_vault_io = MockVaultIO {
+            vault_data,
+            vault_path: "vault-path".into(),
+        };
+        let mock_prompter = MockPrompter {
+            password: "test-password".into(),
+            confirmation: true,
+        };
+
+        let mut password_manager =
+            PasswordManager::new(&mock_vault_encryptor, &mock_vault_io, &mock_prompter);
+
+        let _ = password_manager.list_password_ids();
+    }
+
+    #[test]
+    fn test_getting_password() {
+        let mock_entries = vec![PasswordManagerEntry {
+            id: "id-1".into(),
+            password: "test-1".into(),
+        }];
+        let vault_data = generate_vault_data(&mock_entries);
+
+        let mock_vault_encryptor = MockVaultEncryptor {};
+        let mock_vault_io = MockVaultIO {
+            vault_data,
+            vault_path: "vault-path".into(),
+        };
+        let mock_prompter = MockPrompter {
+            password: "test-password".into(),
+            confirmation: true,
+        };
+
+        let mut password_manager =
+            PasswordManager::new(&mock_vault_encryptor, &mock_vault_io, &mock_prompter);
+
+        let _ = password_manager.get_password("id-1");
+    }
+
+    #[test]
+    fn test_adding_password() {
+        let mock_entries = vec![PasswordManagerEntry {
+            id: "id-1".into(),
+            password: "test-1".into(),
+        }];
+        let vault_data = generate_vault_data(&mock_entries);
+
+        let mock_vault_encryptor = MockVaultEncryptor {};
+        let mock_vault_io = MockVaultIO {
+            vault_data,
+            vault_path: "vault-path".into(),
+        };
+        let mock_prompter = MockPrompter {
+            password: "test-password".into(),
+            confirmation: true,
+        };
+
+        let mut password_manager =
+            PasswordManager::new(&mock_vault_encryptor, &mock_vault_io, &mock_prompter);
+
+        let _ = password_manager.add_password_entry("id-2");
+    }
+
+    #[test]
+    fn test_initialize_manager() {
+        let mock_entries = vec![PasswordManagerEntry {
+            id: "id-1".into(),
+            password: "test-1".into(),
+        }];
+        let vault_data = generate_vault_data(&mock_entries);
+
+        let mock_vault_encryptor = MockVaultEncryptor {};
+        let mock_vault_io = MockVaultIO {
+            vault_data,
+            vault_path: "vault-path".into(),
+        };
+        let mock_prompter = MockPrompter {
+            password: "test-password".into(),
+            confirmation: true,
+        };
+
+        let mut password_manager =
+            PasswordManager::new(&mock_vault_encryptor, &mock_vault_io, &mock_prompter);
+
+        let _ = password_manager.initialize();
     }
 }

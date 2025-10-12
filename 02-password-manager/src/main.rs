@@ -6,7 +6,8 @@ use std::process;
 use clap::{Parser, Subcommand};
 
 use crate::password_manager::{
-    PasswordManager, vault_encryption::VaultEncryption, vault_file_io::VaultFileIO,
+    PasswordManager, manager_prompter::PasswordManagerPrompter, vault_encryption::VaultEncryption,
+    vault_file_io::VaultFileIO,
 };
 
 #[derive(Parser)]
@@ -57,7 +58,12 @@ fn main() {
 fn run(args: Args) -> Result<(), Box<dyn Error>> {
     let vault_file_io = VaultFileIO::new(args.vault);
     let vault_encryption = VaultEncryption::new();
-    let mut password_manager = PasswordManager::new(&vault_encryption, &vault_file_io);
+    let password_manager_prompter = PasswordManagerPrompter::new();
+    let mut password_manager = PasswordManager::new(
+        &vault_encryption,
+        &vault_file_io,
+        &password_manager_prompter,
+    );
 
     return match &args.command {
         Some(Commands::Init {}) => password_manager.initialize(),

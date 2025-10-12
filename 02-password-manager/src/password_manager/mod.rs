@@ -1,3 +1,4 @@
+pub mod manager_prompter;
 mod models;
 mod traits;
 pub mod vault_encryption;
@@ -10,27 +11,31 @@ use std::time::Duration;
 use std::u32;
 
 use arboard::Clipboard;
-use dialoguer::Confirm;
 
 use crate::password_manager::models::PasswordManagerEntry;
+use crate::password_manager::traits::Prompter;
 use crate::password_manager::traits::VaultEncryptor;
 use crate::password_manager::traits::VaultIO;
 
-pub struct PasswordManager<'a, T: VaultEncryptor, U: VaultIO> {
+pub struct PasswordManager<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> {
     vault_encryptor: &'a T,
     vault_io: &'a U,
+    password_manager_prompter: &'a V,
 }
 
-impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
-    pub fn new(vault_encryptor: &'a T, vault_io: &'a U) -> Self {
+impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V> {
+    pub fn new(vault_encryptor: &'a T, vault_io: &'a U, password_manager_prompter: &'a V) -> Self {
         PasswordManager {
             vault_io,
             vault_encryptor,
+            password_manager_prompter,
         }
     }
 
     fn prompt_reset_vault(&self, message: &str) -> Result<(), Box<dyn Error>> {
-        let data_reset_confirmation = Confirm::new().with_prompt(message).interact()?;
+        let data_reset_confirmation = self
+            .password_manager_prompter
+            .prompt_confirmation(message)?;
 
         if data_reset_confirmation {
             self.vault_io.delete_vault()?;
@@ -44,10 +49,10 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
     fn prompt_master_password_setup(&self) -> Result<String, Box<dyn Error>> {
         loop {
             println!("Please enter your master password:");
-            let password = rpassword::read_password()?;
+            let password = self.password_manager_prompter.prompt_password()?;
 
             println!("Enter your master password again to confirm:");
-            let repeated_password = rpassword::read_password()?;
+            let repeated_password = self.password_manager_prompter.prompt_password()?;
 
             if password == repeated_password {
                 return Ok(password.clone());
@@ -59,7 +64,7 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
 
     fn prompt_master_password(&self) -> Result<String, Box<dyn Error>> {
         println!("Please enter your master password:");
-        let password = rpassword::read_password()?;
+        let password = self.password_manager_prompter.prompt_password()?;
 
         return Ok(password.clone());
     }

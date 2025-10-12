@@ -22,3 +22,8 @@ pub trait VaultEncryptor {
         entries: &Vec<PasswordManagerEntry>,
     ) -> Result<Vault, Box<dyn Error>>;
 }
+
+pub trait Prompter {
+    fn prompt_confirmation(&self, message: &str) -> Result<bool, Box<dyn Error>>;
+    fn prompt_password(&self) -> Result<String, Box<dyn Error>>;
+}

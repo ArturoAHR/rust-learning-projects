@@ -93,6 +93,13 @@ impl<'a, T: VaultEncryptor, U: VaultIO, V: Prompter> PasswordManager<'a, T, U, V
             .vault_encryptor
             .decrypt_vault_entries(&password, &vault_data)?;
 
+        for entry in entries.iter() {
+            println!("{} {}", entry.id.as_str(), entry_id);
+            if entry.id.as_str() == entry_id {
+                return Err("Entry ID already exists in Vault".into());
+            }
+        }
+
         println!("Introduce the password tied to this entry:");
         let entry_password = self.prompter.prompt_password()?;
 
@@ -312,7 +319,7 @@ mod tests {
         let mut password_manager =
             PasswordManager::new(&mock_vault_encryptor, &mock_vault_io, &mock_prompter);
 
-        let _ = password_manager.list_password_ids();
+        let _ = password_manager.list_password_ids().unwrap();
     }
 
     #[test]
@@ -336,7 +343,31 @@ mod tests {
         let mut password_manager =
             PasswordManager::new(&mock_vault_encryptor, &mock_vault_io, &mock_prompter);
 
-        let _ = password_manager.get_password("id-1");
+        let _ = password_manager.get_password("id-1").unwrap();
+    }
+
+    #[test]
+    fn test_getting_non_existent_password() {
+        let mock_entries = vec![PasswordManagerEntry {
+            id: "id-1".into(),
+            password: "test-1".into(),
+        }];
+        let vault_data = generate_vault_data(&mock_entries);
+
+        let mock_vault_encryptor = MockVaultEncryptor {};
+        let mock_vault_io = MockVaultIO {
+            vault_data,
+            vault_path: "vault-path".into(),
+        };
+        let mock_prompter = MockPrompter {
+            password: "test-password".into(),
+            confirmation: true,
+        };
+
+        let mut password_manager =
+            PasswordManager::new(&mock_vault_encryptor, &mock_vault_io, &mock_prompter);
+
+        let _ = password_manager.get_password("id-2").unwrap();
     }
 
     #[test]
@@ -360,7 +391,32 @@ mod tests {
         let mut password_manager =
             PasswordManager::new(&mock_vault_encryptor, &mock_vault_io, &mock_prompter);
 
-        let _ = password_manager.add_password_entry("id-2");
+        let _ = password_manager.add_password_entry("id-2").unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_adding_password_with_existing_password_id() {
+        let mock_entries = vec![PasswordManagerEntry {
+            id: "id-1".into(),
+            password: "test-1".into(),
+        }];
+        let vault_data = generate_vault_data(&mock_entries);
+
+        let mock_vault_encryptor = MockVaultEncryptor {};
+        let mock_vault_io = MockVaultIO {
+            vault_data,
+            vault_path: "vault-path".into(),
+        };
+        let mock_prompter = MockPrompter {
+            password: "test-password".into(),
+            confirmation: true,
+        };
+
+        let mut password_manager =
+            PasswordManager::new(&mock_vault_encryptor, &mock_vault_io, &mock_prompter);
+
+        let _ = password_manager.add_password_entry("id-1".into()).unwrap();
     }
 
     #[test]
@@ -384,6 +440,6 @@ mod tests {
         let mut password_manager =
             PasswordManager::new(&mock_vault_encryptor, &mock_vault_io, &mock_prompter);
 
-        let _ = password_manager.initialize();
+        let _ = password_manager.initialize().unwrap();
     }
 }

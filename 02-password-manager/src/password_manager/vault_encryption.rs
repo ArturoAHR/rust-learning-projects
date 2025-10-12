@@ -1,4 +1,4 @@
-use std::{error::Error, io};
+use std::error::Error;
 
 use argon2::{Argon2, password_hash::rand_core::RngCore};
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -9,47 +9,23 @@ use chacha20poly1305::{
 
 use crate::password_manager::{
     models::{PasswordManagerEntry, Vault},
-    traits::{VaultEncryptor, VaultIO},
+    traits::VaultEncryptor,
 };
 
-pub struct VaultEncryption<'a, T: VaultIO> {
-    vault_io: &'a T,
-}
+pub struct VaultEncryption {}
 
-impl<'a, T: VaultIO> VaultEncryption<'a, T> {
-    pub fn new(vault_io_service: &'a T) -> Self {
-        VaultEncryption {
-            vault_io: vault_io_service,
-        }
+impl VaultEncryption {
+    pub fn new() -> Self {
+        VaultEncryption {}
     }
 }
 
-impl<'a, T: VaultIO> VaultEncryptor for VaultEncryption<'a, T> {
+impl VaultEncryptor for VaultEncryption {
     fn decrypt_vault_entries(
         &self,
         password: &str,
+        vault_data: &Vault,
     ) -> Result<Vec<PasswordManagerEntry>, Box<dyn Error>> {
-        let vault_data: Vault;
-        let get_vault_data_result = self.vault_io.read_vault();
-
-        match get_vault_data_result {
-            Ok(data) => vault_data = data,
-            Err(error) => {
-                if let Some(io_error) = error.downcast_ref::<io::Error>()
-                    && io_error.kind() == io::ErrorKind::NotFound
-                {
-                    let error_message = format!(
-                        "Vault file doesn't exist at location: {}",
-                        &self.vault_io.get_vault_path()?
-                    );
-
-                    return Err(error_message.into());
-                }
-
-                return Err(error);
-            }
-        }
-
         let salt = STANDARD.decode(&vault_data.salt)?;
         let nonce = GenericArray::clone_from_slice(&STANDARD.decode(&vault_data.nonce)?);
         let encrypted_data = STANDARD.decode(&vault_data.encrypted_data)?;
@@ -88,7 +64,7 @@ impl<'a, T: VaultIO> VaultEncryptor for VaultEncryption<'a, T> {
         &self,
         password: &str,
         entries: &Vec<PasswordManagerEntry>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<Vault, Box<dyn Error>> {
         let json_entries = serde_json::to_string_pretty(&entries)?;
 
         let mut salt = vec![0u8; 16];
@@ -121,54 +97,9 @@ impl<'a, T: VaultIO> VaultEncryptor for VaultEncryption<'a, T> {
                     encrypted_data: STANDARD.encode(encrypted_data),
                 };
 
-                let _ = self.vault_io.write_to_vault(&vault);
+                Ok(vault)
             }
             Err(_e) => return Err("Error while performing encryption".into()),
         }
-
-        Ok(())
-    }
-
-    fn initialize_vault(&self, password: &str) -> Result<(), Box<dyn Error>> {
-        let entries: Vec<PasswordManagerEntry> = Vec::new();
-
-        let json_entries = serde_json::to_string_pretty(&entries)?;
-
-        let mut salt = vec![0u8; 16];
-        OsRng.fill_bytes(&mut salt);
-
-        let mut password_derive_key = [0u8; 32];
-        let password_hash_result = Argon2::default().hash_password_into(
-            &password.as_bytes(),
-            &salt,
-            &mut password_derive_key,
-        );
-
-        if let Err(_e) = password_hash_result {
-            return Err("Error while generating password hash".into());
-        }
-
-        let cipher = XChaCha20Poly1305::new(&password_derive_key.into());
-
-        let mut nonce_bytes = [0u8; 24];
-        OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce = XNonce::from_slice(&nonce_bytes);
-
-        let data_encryption_result = cipher.encrypt(nonce, json_entries.as_bytes());
-
-        match data_encryption_result {
-            Ok(encrypted_data) => {
-                let vault = Vault {
-                    salt: STANDARD.encode(salt),
-                    nonce: STANDARD.encode(nonce.to_vec()),
-                    encrypted_data: STANDARD.encode(encrypted_data),
-                };
-
-                let _ = &self.vault_io.write_to_vault(&vault);
-            }
-            Err(_e) => return Err("Error while performing encryption".into()),
-        }
-
-        Ok(())
     }
 }

@@ -67,7 +67,11 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
     pub fn list_password_ids(&mut self) -> Result<(), Box<dyn Error>> {
         let password = self.prompt_master_password()?;
 
-        let entries = self.vault_encryptor.decrypt_vault_entries(&password)?;
+        let vault_data = self.vault_io.read_vault()?;
+
+        let entries = self
+            .vault_encryptor
+            .decrypt_vault_entries(&password, &vault_data)?;
 
         println!("List of password IDs:");
         for (index, entry) in entries.iter().enumerate() {
@@ -80,7 +84,11 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
     pub fn add_password_entry(&mut self, entry_id: &str) -> Result<(), Box<dyn Error>> {
         let password = self.prompt_master_password()?;
 
-        let mut entries = self.vault_encryptor.decrypt_vault_entries(&password)?;
+        let vault_data = self.vault_io.read_vault()?;
+
+        let mut entries = self
+            .vault_encryptor
+            .decrypt_vault_entries(&password, &vault_data)?;
 
         println!("Introduce the password tied to this entry:");
         let entry_password = rpassword::read_password()?;
@@ -90,8 +98,11 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
             password: entry_password,
         });
 
-        self.vault_encryptor
+        let encrypted_vault = self
+            .vault_encryptor
             .encrypt_vault_entries(&password, &entries)?;
+
+        let _ = self.vault_io.write_to_vault(&encrypted_vault);
 
         Ok(())
     }
@@ -100,7 +111,11 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
         let mut clipboard = Clipboard::new()?;
         let password = self.prompt_master_password()?;
 
-        let entries = self.vault_encryptor.decrypt_vault_entries(&password)?;
+        let vault_data = self.vault_io.read_vault()?;
+
+        let entries = self
+            .vault_encryptor
+            .decrypt_vault_entries(&password, &vault_data)?;
 
         let password_id = &entry_id.trim();
         let mut password_index: Option<u32> = None;
@@ -175,7 +190,11 @@ impl<'a, T: VaultEncryptor, U: VaultIO> PasswordManager<'a, T, U> {
 
         self.vault_io.create_vault()?;
 
-        self.vault_encryptor.initialize_vault(&password)?;
+        let encrypted_vault = self
+            .vault_encryptor
+            .encrypt_vault_entries(&password, &Vec::new())?;
+
+        let _ = self.vault_io.write_to_vault(&encrypted_vault);
 
         println!(
             "Vault has been created successfully at {}",

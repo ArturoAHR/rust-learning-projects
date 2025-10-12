@@ -56,9 +56,7 @@ fn main() {
 
 fn run(args: Args) -> Result<(), Box<dyn Error>> {
     let vault_file_io = VaultFileIO::new(args.vault);
-
-    let vault_encryption = VaultEncryption::new(&vault_file_io);
-
+    let vault_encryption = VaultEncryption::new();
     let mut password_manager = PasswordManager::new(&vault_encryption, &vault_file_io);
 
     return match &args.command {

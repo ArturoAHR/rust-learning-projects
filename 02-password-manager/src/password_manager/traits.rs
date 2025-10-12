@@ -14,11 +14,11 @@ pub trait VaultEncryptor {
     fn decrypt_vault_entries(
         &self,
         password: &str,
+        vault_data: &Vault,
     ) -> Result<Vec<PasswordManagerEntry>, Box<dyn Error>>;
     fn encrypt_vault_entries(
         &self,
         password: &str,
         entries: &Vec<PasswordManagerEntry>,
-    ) -> Result<(), Box<dyn Error>>;
-    fn initialize_vault(&self, password: &str) -> Result<(), Box<dyn Error>>;
+    ) -> Result<Vault, Box<dyn Error>>;
 }
